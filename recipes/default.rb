@@ -59,7 +59,7 @@ directory "#{node[:jenkins][:server][:home]}/plugins" do
 end
 
 node[:jenkins][:server][:plugins].each do |name|
-  remote_file "#{node[:jenkins][:server][:home]}/plugins/#{name}.hpi" do
+  remote_file "#{node[:jenkins][:server][:home]}/plugins/#{name}.jpi" do
     source "#{node[:jenkins][:mirror]}/latest/#{name}.hpi"
     backup false
     owner node[:jenkins][:server][:user]
@@ -71,10 +71,10 @@ node[:jenkins][:server][:plugins].each do |name|
     message ""
     url "#{node[:jenkins][:mirror]}/latest/#{name}.hpi"
     action :head
-    if File.exists?("#{node[:jenkins][:server][:home]}/plugins/#{name}.hpi")
-      headers "If-Modified-Since" => File.mtime("#{node[:jenkins][:server][:home]}/plugins/#{name}.hpi").httpdate
+    if File.exists?("#{node[:jenkins][:server][:home]}/plugins/#{name}.jpi")
+      headers "If-Modified-Since" => File.mtime("#{node[:jenkins][:server][:home]}/plugins/#{name}.jpi").httpdate
     end
-    notifies :create, resources(:remote_file => "#{node[:jenkins][:server][:home]}/plugins/#{name}.hpi"), :immediately
+    notifies :create, "remote_file[#{node[:jenkins][:server][:home]}/plugins/#{name}.jpi]", :immediately
   end
 end
 
@@ -231,17 +231,13 @@ package "jenkins" do
   action :nothing
 end
 
-# restart if this run only added new plugins
-log "plugins updated, restarting jenkins" do
-  #ugh :restart does not work, need to sleep after stop.
-  notifies :stop, "service[jenkins]", :immediately
-  notifies :create, "ruby_block[netstat]", :immediately
-  notifies :start, "service[jenkins]", :immediately
-  notifies :create, "ruby_block[block_until_operational]", :immediately
+# restart if this run added new plugins
+log "plugins updated, will restart jenkins" do
+  notifies :restart, "service[jenkins]", :delayed
   only_if do
     if File.exists?(pid_file)
       htime = File.mtime(pid_file)
-      Dir["#{node[:jenkins][:server][:home]}/plugins/*.hpi"].select { |file|
+      Dir["#{node[:jenkins][:server][:home]}/plugins/*.jpi"].select { |file|
         File.mtime(file) > htime
       }.size > 0
     end
